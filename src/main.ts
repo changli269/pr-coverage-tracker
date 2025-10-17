@@ -74,9 +74,41 @@ async function run(): Promise<void> {
 
     // Cache coverage as reference
     await mv(currentCoverageFile, previousCoverageFile, {force: true})
+    // Check if cache key already exists; list caches and delete matching entry to avoid save failure
+    const targetKey = `${process.platform}-${branchName}-prev-${context.sha}`
+    try {
+      const listResp = await octokit.request(
+        'GET /repos/{owner}/{repo}/actions/caches',
+        {
+          owner: context.repo.owner,
+            repo: context.repo.repo,
+            per_page: 100
+        }
+      )
+      const caches: any[] =
+        (listResp.data as any).actions_caches || (listResp.data as any).caches || []
+      const existing = caches.find(c => c.key === targetKey)
+      if (existing) {
+        core.info(
+          `Cache key ${targetKey} already exists (id=${existing.id}), deleting it before saving new one.`
+        )
+        await octokit.request(
+          'DELETE /repos/{owner}/{repo}/actions/caches/{cache_id}',
+          {
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            cache_id: existing.id
+          }
+        )
+      } else {
+        core.info(`Cache key ${targetKey} does not exist yet; will create new cache.`)
+      }
+    } catch (e) {
+      core.warning(`Could not verify existing cache keys: ${(e as Error).message}`)
+    }
     await cache.saveCache(
       [previousCoverageFile],
-      `${process.platform}-${branchName}-prev-${context.sha}`
+      targetKey
     )
 
     core.setOutput('comment-file', 'comment.md')
