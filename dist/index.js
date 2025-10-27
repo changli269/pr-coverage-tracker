@@ -168,14 +168,21 @@ const cache = __importStar(__nccwpck_require__(7799));
 const compare_coverage_1 = __nccwpck_require__(3777);
 const io_1 = __nccwpck_require__(7436);
 const fs = __importStar(__nccwpck_require__(7147));
-const SHA_FROM_KEY_RE = /prev-([^-]+)-.*$/;
+const SHA_FROM_KEY_RE = /prev-([0-9a-fA-F]+)(?:-|$)/;
 function tryRestorePreviousCoverage(restoreKey, previousCoverageFile) {
     return __awaiter(this, void 0, void 0, function* () {
         const recoveredKey = yield cache.restoreCache([previousCoverageFile], restoreKey, [restoreKey]);
         if (recoveredKey) {
             core.info(`Restoring previous coverage from cache key ${recoveredKey}...`);
             const m = SHA_FROM_KEY_RE.exec(recoveredKey);
-            return { sha: m === null || m === void 0 ? void 0 : m[1], recoveredKey };
+            if (m && m[1]) {
+                core.info(`Parsed previous commit id ${m[1]} from cache key`);
+                return { sha: m[1], recoveredKey };
+            }
+            else {
+                core.warning(`Could not parse commit id from cache key '${recoveredKey}' with pattern ${SHA_FROM_KEY_RE}`);
+                return { sha: undefined, recoveredKey };
+            }
         }
         else {
             core.warning(`Couldnt get previous coverage from cache key ${restoreKey}`);

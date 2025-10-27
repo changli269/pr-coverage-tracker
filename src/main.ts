@@ -5,7 +5,7 @@ import { getCoverageComment } from './compare-coverage'
 import { mv } from '@actions/io'
 import * as fs from 'fs'
 
-const SHA_FROM_KEY_RE = /prev-([^-]+)-.*$/
+const SHA_FROM_KEY_RE = /prev-([0-9a-fA-F]+)(?:-|$)/
 
 async function tryRestorePreviousCoverage(
   restoreKey: string,
@@ -19,7 +19,13 @@ async function tryRestorePreviousCoverage(
   if (recoveredKey) {
     core.info(`Restoring previous coverage from cache key ${recoveredKey}...`)
     const m = SHA_FROM_KEY_RE.exec(recoveredKey)
-    return { sha: m?.[1], recoveredKey }
+    if (m && m[1]) {
+      core.info(`Parsed previous commit id ${m[1]} from cache key`)
+      return { sha: m[1], recoveredKey }
+    } else {
+      core.warning(`Could not parse commit id from cache key '${recoveredKey}' with pattern ${SHA_FROM_KEY_RE}`)
+      return { sha: undefined, recoveredKey }
+    }
   } else {
     core.warning(`Couldnt get previous coverage from cache key ${restoreKey}`)
     return { sha: undefined, recoveredKey: undefined }
