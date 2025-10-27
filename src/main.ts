@@ -102,7 +102,6 @@ async function run(): Promise<void> {
       previousCoverageFile
     )
     sha = restoredSha
-    core.info(`previous commit id resolved to ${sha}`)
 
     // For non-PR events, if cache not found, fallback to previous commit via API
     if (context.eventName !== 'pull_request' && !sha) {

@@ -72,7 +72,7 @@ export function getCoverageComment({
   core.info(
     `Comparing new coverage from ${currentCoverageFile} to previous ${previousCoverageFile}...`
   )
-  core.info(`Previous commit: ${previousCommitId}`)
+  core.info(`Previous commit from base branch: ${previousCommitId}`)
 
   const prevCov = previousCoverageFile
     ? readCoverage(previousCoverageFile)

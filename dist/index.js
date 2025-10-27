@@ -76,7 +76,7 @@ function compareCoverageData(prev, cur) {
 function getCoverageComment({ commitId, currentCoverageFile, previousCommitId, previousCoverageFile }) {
     // Get coverage files to compare
     core.info(`Comparing new coverage from ${currentCoverageFile} to previous ${previousCoverageFile}...`);
-    core.info(`Previous commit: ${previousCommitId}`);
+    core.info(`Previous commit from base branch: ${previousCommitId}`);
     const prevCov = previousCoverageFile
         ? readCoverage(previousCoverageFile)
         : null;
@@ -250,7 +250,6 @@ function run() {
             const restoreKey = `${process.platform}-${baselineBranch}-prev-`;
             const { sha: restoredSha } = yield tryRestorePreviousCoverage(restoreKey, previousCoverageFile);
             sha = restoredSha;
-            core.info(`previous commit id resolved to ${sha}`);
             // For non-PR events, if cache not found, fallback to previous commit via API
             if (github_1.context.eventName !== 'pull_request' && !sha) {
                 sha = yield getParentCommitSha(octokit, github_1.context.repo.owner, github_1.context.repo.repo, github_1.context.sha);
