@@ -63,8 +63,8 @@ async function run(): Promise<void> {
 
     const comment = getCoverageComment({
       commitId: context.sha,
-      previousCommitId: sha,
       currentCoverageFile,
+      previousCommitId: sha,
       previousCoverageFile
     })
 
