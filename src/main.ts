@@ -1,64 +1,110 @@
 import * as core from '@actions/core'
-import {context, getOctokit} from '@actions/github'
+import { context, getOctokit } from '@actions/github'
 import * as cache from '@actions/cache'
-import {getCoverageComment} from './compare-coverage'
-import {mv} from '@actions/io'
+import { getCoverageComment } from './compare-coverage'
+import { mv } from '@actions/io'
 import * as fs from 'fs'
+
+const SHA_FROM_KEY_RE = /prev-([^-]+)-.*$/
+
+async function tryRestorePreviousCoverage(
+  restoreKey: string,
+  previousCoverageFile: string
+): Promise<{ sha?: string; recoveredKey?: string }> {
+  const recoveredKey = await cache.restoreCache(
+    [previousCoverageFile],
+    restoreKey,
+    [restoreKey]
+  )
+  if (recoveredKey) {
+    core.info(`Restoring previous coverage from cache key ${recoveredKey}...`)
+    const m = SHA_FROM_KEY_RE.exec(recoveredKey)
+    return { sha: m?.[1], recoveredKey }
+  } else {
+    core.warning(`Couldnt get previous coverage from cache key ${restoreKey}`)
+    return { sha: undefined, recoveredKey: undefined }
+  }
+}
+
+async function getParentCommitSha(
+  octokit: any,
+  owner: string,
+  repo: string,
+  refSha: string
+): Promise<string | undefined> {
+  try {
+    const commitResp = await octokit.rest.repos.getCommit({
+      owner,
+      repo,
+      ref: refSha
+    })
+    const parentSha = commitResp.data.parents?.[0]?.sha
+    if (parentSha) {
+      core.info(`Using parent commit ${parentSha} as previousCommitId`)
+    } else {
+      core.warning('No parent commit found for current commit')
+    }
+    return parentSha
+  } catch (e) {
+    core.warning(`Failed to fetch parent commit via API: ${(e as Error).message}`)
+    return undefined
+  }
+}
 
 async function run(): Promise<void> {
   try {
     const currentCoverageFile: string = core.getInput('coverage-path', {
       required: true
     })
-    const previousCoverageFile: string = core.getInput(
-      'reference-coverage-path'
-    )
+    // Resolve reference coverage path; allow empty input -> use default filename
+    const previousCoverageInput: string = core.getInput('reference-coverage-path')
+    const previousCoverageFile: string =
+      previousCoverageInput && previousCoverageInput.trim().length > 0
+        ? previousCoverageInput.trim()
+        : '__prev-text-summary.txt'
+    if (!previousCoverageInput || previousCoverageInput.trim().length === 0) {
+      core.info(
+        "No 'reference-coverage-path' provided; defaulting to '__prev-text-summary.txt'"
+      )
+    }
 
-    const token = core.getInput('token', {required: true})
+    const token = core.getInput('token', { required: true })
 
     const octokit = getOctokit(token)
 
     let sha: string | undefined
     let branchName: string
+    let baselineBranch: string
+
     if (context.eventName === 'pull_request') {
       const pr = await octokit.rest.pulls.get({
         pull_number: context.issue.number,
         owner: context.issue.owner,
         repo: context.issue.repo
       })
-
-      // Restore previous coverage to compare with from cache
-      const restoreKey = `${process.platform}-${
-        context.eventName === 'pull_request'
-          ? pr.data.base.ref
-          : pr.data.head.ref
-      }-prev-`
-      const previousCoverageRecoveredKey = await cache.restoreCache(
-        [core.getInput('reference-coverage-path')],
-        restoreKey,
-        [restoreKey]
-      )
-
-      if (previousCoverageRecoveredKey) {
-        core.info(
-          `Restoring previous coverage from cache key ${previousCoverageRecoveredKey}...`
-        )
-      } else {
-        core.warning(
-          `Couldnt get previous coverage from cache key ${restoreKey}`
-        )
-      }
-
-      sha = previousCoverageRecoveredKey
-        ? /prev-([^-]+)-.*$/.exec(previousCoverageRecoveredKey)?.[1]
-        : undefined
-      if (sha) {
-        core.info(`Reference coverage was calculated for commit ${sha}`)
-      }
-
       branchName = pr.data.head.ref
+      baselineBranch = pr.data.base.ref
     } else {
       branchName = context.ref.replace(/^refs\/heads\//, '')
+      baselineBranch = branchName
+    }
+
+    // Restore previous coverage for baseline branch
+    const restoreKey = `${process.platform}-${baselineBranch}-prev-`
+    const { sha: restoredSha } = await tryRestorePreviousCoverage(
+      restoreKey,
+      previousCoverageFile
+    )
+    sha = restoredSha
+
+    // For non-PR events, if cache not found, fallback to previous commit via API
+    if (context.eventName !== 'pull_request' && !sha) {
+      sha = await getParentCommitSha(
+        octokit,
+        context.repo.owner,
+        context.repo.repo,
+        context.sha
+      )
     }
 
     const comment = getCoverageComment({
@@ -73,7 +119,7 @@ async function run(): Promise<void> {
     fs.writeFileSync('comment.md', comment)
 
     // Cache coverage as reference
-    await mv(currentCoverageFile, previousCoverageFile, {force: true})
+    await mv(currentCoverageFile, previousCoverageFile, { force: true })
     // Check if cache key already exists; list caches and delete matching entry to avoid save failure
     const targetKey = `${process.platform}-${branchName}-prev-${context.sha}`
     try {
@@ -81,8 +127,8 @@ async function run(): Promise<void> {
         'GET /repos/{owner}/{repo}/actions/caches',
         {
           owner: context.repo.owner,
-            repo: context.repo.repo,
-            per_page: 100
+          repo: context.repo.repo,
+          per_page: 100
         }
       )
       const caches: any[] =
@@ -106,10 +152,7 @@ async function run(): Promise<void> {
     } catch (e) {
       core.warning(`Could not verify existing cache keys: ${(e as Error).message}`)
     }
-    await cache.saveCache(
-      [previousCoverageFile],
-      targetKey
-    )
+    await cache.saveCache([previousCoverageFile], targetKey)
 
     core.setOutput('comment-file', 'comment.md')
     core.setOutput('comment', comment)

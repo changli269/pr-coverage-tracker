@@ -168,50 +168,89 @@ const cache = __importStar(__nccwpck_require__(7799));
 const compare_coverage_1 = __nccwpck_require__(3777);
 const io_1 = __nccwpck_require__(7436);
 const fs = __importStar(__nccwpck_require__(7147));
+const SHA_FROM_KEY_RE = /prev-([^-]+)-.*$/;
+function tryRestorePreviousCoverage(restoreKey, previousCoverageFile) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const recoveredKey = yield cache.restoreCache([previousCoverageFile], restoreKey, [restoreKey]);
+        if (recoveredKey) {
+            core.info(`Restoring previous coverage from cache key ${recoveredKey}...`);
+            const m = SHA_FROM_KEY_RE.exec(recoveredKey);
+            return { sha: m === null || m === void 0 ? void 0 : m[1], recoveredKey };
+        }
+        else {
+            core.warning(`Couldnt get previous coverage from cache key ${restoreKey}`);
+            return { sha: undefined, recoveredKey: undefined };
+        }
+    });
+}
+function getParentCommitSha(octokit, owner, repo, refSha) {
+    var _a, _b;
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            const commitResp = yield octokit.rest.repos.getCommit({
+                owner,
+                repo,
+                ref: refSha
+            });
+            const parentSha = (_b = (_a = commitResp.data.parents) === null || _a === void 0 ? void 0 : _a[0]) === null || _b === void 0 ? void 0 : _b.sha;
+            if (parentSha) {
+                core.info(`Using parent commit ${parentSha} as previousCommitId`);
+            }
+            else {
+                core.warning('No parent commit found for current commit');
+            }
+            return parentSha;
+        }
+        catch (e) {
+            core.warning(`Failed to fetch parent commit via API: ${e.message}`);
+            return undefined;
+        }
+    });
+}
 function run() {
-    var _a;
     return __awaiter(this, void 0, void 0, function* () {
         try {
             const currentCoverageFile = core.getInput('coverage-path', {
                 required: true
             });
-            const previousCoverageFile = core.getInput('reference-coverage-path');
+            // Resolve reference coverage path; allow empty input -> use default filename
+            const previousCoverageInput = core.getInput('reference-coverage-path');
+            const previousCoverageFile = previousCoverageInput && previousCoverageInput.trim().length > 0
+                ? previousCoverageInput.trim()
+                : '__prev-text-summary.txt';
+            if (!previousCoverageInput || previousCoverageInput.trim().length === 0) {
+                core.info("No 'reference-coverage-path' provided; defaulting to '__prev-text-summary.txt'");
+            }
             const token = core.getInput('token', { required: true });
             const octokit = (0, github_1.getOctokit)(token);
             let sha;
             let branchName;
+            let baselineBranch;
             if (github_1.context.eventName === 'pull_request') {
                 const pr = yield octokit.rest.pulls.get({
                     pull_number: github_1.context.issue.number,
                     owner: github_1.context.issue.owner,
                     repo: github_1.context.issue.repo
                 });
-                // Restore previous coverage to compare with from cache
-                const restoreKey = `${process.platform}-${github_1.context.eventName === 'pull_request'
-                    ? pr.data.base.ref
-                    : pr.data.head.ref}-prev-`;
-                const previousCoverageRecoveredKey = yield cache.restoreCache([core.getInput('reference-coverage-path')], restoreKey, [restoreKey]);
-                if (previousCoverageRecoveredKey) {
-                    core.info(`Restoring previous coverage from cache key ${previousCoverageRecoveredKey}...`);
-                }
-                else {
-                    core.warning(`Couldnt get previous coverage from cache key ${restoreKey}`);
-                }
-                sha = previousCoverageRecoveredKey
-                    ? (_a = /prev-([^-]+)-.*$/.exec(previousCoverageRecoveredKey)) === null || _a === void 0 ? void 0 : _a[1]
-                    : undefined;
-                if (sha) {
-                    core.info(`Reference coverage was calculated for commit ${sha}`);
-                }
                 branchName = pr.data.head.ref;
+                baselineBranch = pr.data.base.ref;
             }
             else {
                 branchName = github_1.context.ref.replace(/^refs\/heads\//, '');
+                baselineBranch = branchName;
+            }
+            // Restore previous coverage for baseline branch
+            const restoreKey = `${process.platform}-${baselineBranch}-prev-`;
+            const { sha: restoredSha } = yield tryRestorePreviousCoverage(restoreKey, previousCoverageFile);
+            sha = restoredSha;
+            // For non-PR events, if cache not found, fallback to previous commit via API
+            if (github_1.context.eventName !== 'pull_request' && !sha) {
+                sha = yield getParentCommitSha(octokit, github_1.context.repo.owner, github_1.context.repo.repo, github_1.context.sha);
             }
             const comment = (0, compare_coverage_1.getCoverageComment)({
                 commitId: github_1.context.sha,
-                previousCommitId: sha,
                 currentCoverageFile,
+                previousCommitId: sha,
                 previousCoverageFile
             });
             core.info(comment);
