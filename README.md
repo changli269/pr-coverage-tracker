@@ -1,5 +1,12 @@
 # pr-coverage-tracker
 
+This is forked from https://github.com/alvaromartmart/pr-coverage-tracker. While it improved 2 places as below:
+
+* Whenever save the key to cache at the last step, it will check if the key existed or not, if existed it will delete it and recreate it, so it will avoid failure when save the key.
+* Now it's able to resolve "previous commit id" regardless it's a pull-request event or an event directly from a branch.
+
+Below are the original README content.
+
 A Github Action to compare and comment PRs with code coverage trends.
 
 It works by parsing `text-summary.txt` produced after a successfull test run, and when a reference coverage is available, comparing it to previous values and showing coverage trends.
