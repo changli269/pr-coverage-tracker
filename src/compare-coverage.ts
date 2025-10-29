@@ -1,6 +1,6 @@
 import fs from 'fs'
 import * as core from '@actions/core'
-
+import { context, getOctokit } from '@actions/github'
 import {exit} from 'process'
 
 type CoverageData = {
@@ -88,9 +88,7 @@ export function getCoverageComment({
   const trends =
     prevCov !== null ? compareCoverageData(prevCov, currentCov) : null
 
-  const serverUrl = process.env.GITHUB_SERVER_URL || 'https://github.com'
-  const repository = process.env.GITHUB_REPOSITORY || ''
-  const repoBaseUrl = repository ? `${serverUrl}/${repository}` : serverUrl
+  const repoBaseUrl = context.serverUrl + '/' + context.repo.owner + '/' + context.repo.repo
 
   const message = [
     `### Coverage trend:`,
