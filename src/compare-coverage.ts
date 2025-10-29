@@ -88,11 +88,15 @@ export function getCoverageComment({
   const trends =
     prevCov !== null ? compareCoverageData(prevCov, currentCov) : null
 
+  const serverUrl = process.env.GITHUB_SERVER_URL || 'https://github.com'
+  const repository = process.env.GITHUB_REPOSITORY || ''
+  const repoBaseUrl = repository ? `${serverUrl}/${repository}` : serverUrl
+
   const message = [
     `### Coverage trend:`,
     `_Commit ${commitId}${
       previousCommitId
-        ? `( [compared](https://github.com/alvaromartmart/code-coverage-tracker/compare/${previousCommitId}..${commitId}) to ${previousCommitId} )`
+        ? `( [compared](${repoBaseUrl}/compare/${previousCommitId}..${commitId}) to ${previousCommitId} )`
         : ''
     }_`,
     ...(trends
@@ -131,7 +135,12 @@ export function getCoverageComment({
   core.setOutput('compared', trends !== null)
   core.setOutput(
     'has-changed',
-    trends?.Branches || trends?.Functions || trends?.Lines || trends?.Statements
+    trends
+      ? trends.Branches !== 0 ||
+        trends.Functions !== 0 ||
+        trends.Lines !== 0 ||
+        trends.Statements !== 0
+      : false
   )
 
   core.debug(message)
