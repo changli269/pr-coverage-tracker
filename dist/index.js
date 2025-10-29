@@ -97,7 +97,7 @@ function getCoverageComment({ commitId, currentCoverageFile, previousCommitId, p
             : ''}_`,
         ...(trends
             ? [
-                `| - | Previous (Base) | Current | Trend |`,
+                `| - | Base | Current | Trend |`,
                 `| --- | --- | --- | --- |`,
                 `| Statements | ${prevCov === null || prevCov === void 0 ? void 0 : prevCov.Statements}% | ${currentCov.Statements}% | ${trends.Statements >= 0
                     ? trends.Statements === 0
@@ -109,7 +109,7 @@ function getCoverageComment({ commitId, currentCoverageFile, previousCommitId, p
                 `| Lines | ${prevCov === null || prevCov === void 0 ? void 0 : prevCov.Lines}% | ${currentCov.Lines}% | ${trends.Lines >= 0 ? (trends.Lines === 0 ? '-' : '✅') : '🔻'} ${trends.Lines}% |\n`
             ]
             : [
-                `| - | Previous | Current | Trend |`,
+                `| - | Base | Current | Trend |`,
                 `| --- | --- | --- | --- |`,
                 `| Statements | ? | ${currentCov.Statements}% | ? |`,
                 `| Branches | ? | ${currentCov.Branches}% | ? |`,

@@ -100,7 +100,7 @@ export function getCoverageComment({
     }_`,
     ...(trends
       ? [
-          `| - | Previous (Base) | Current | Trend |`,
+          `| - | Base | Current | Trend |`,
           `| --- | --- | --- | --- |`,
           `| Statements | ${prevCov?.Statements}% | ${
             currentCov.Statements
@@ -122,7 +122,7 @@ export function getCoverageComment({
           } ${trends.Lines}% |\n`
         ]
       : [
-          `| - | Previous | Current | Trend |`,
+          `| - | Base | Current | Trend |`,
           `| --- | --- | --- | --- |`,
           `| Statements | ? | ${currentCov.Statements}% | ? |`,
           `| Branches | ? | ${currentCov.Branches}% | ? |`,
