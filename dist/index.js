@@ -36,6 +36,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.getCoverageComment = void 0;
 const fs_1 = __importDefault(__nccwpck_require__(7147));
 const core = __importStar(__nccwpck_require__(2186));
+const github_1 = __nccwpck_require__(5438);
 const process_1 = __nccwpck_require__(7282);
 function readCoverage(filePath) {
     var _a, _b, _c, _d;
@@ -87,10 +88,12 @@ function getCoverageComment({ commitId, currentCoverageFile, previousCommitId, p
         (0, process_1.exit)(0);
     }
     const trends = prevCov !== null ? compareCoverageData(prevCov, currentCov) : null;
+    const repoBaseUrl = github_1.context.serverUrl + '/' + github_1.context.repo.owner + '/' + github_1.context.repo.repo;
+    core.info(`Repository base URL: ${repoBaseUrl}`);
     const message = [
         `### Coverage trend:`,
         `_Commit ${commitId}${previousCommitId
-            ? `( [compared](https://github.com/alvaromartmart/code-coverage-tracker/compare/${previousCommitId}..${commitId}) to ${previousCommitId} )`
+            ? `( [compared](${repoBaseUrl}/compare/${previousCommitId}..${commitId}) to ${previousCommitId} )`
             : ''}_`,
         ...(trends
             ? [
@@ -115,7 +118,12 @@ function getCoverageComment({ commitId, currentCoverageFile, previousCommitId, p
             ])
     ].join('\n');
     core.setOutput('compared', trends !== null);
-    core.setOutput('has-changed', (trends === null || trends === void 0 ? void 0 : trends.Branches) || (trends === null || trends === void 0 ? void 0 : trends.Functions) || (trends === null || trends === void 0 ? void 0 : trends.Lines) || (trends === null || trends === void 0 ? void 0 : trends.Statements));
+    core.setOutput('has-changed', trends
+        ? trends.Branches !== 0 ||
+            trends.Functions !== 0 ||
+            trends.Lines !== 0 ||
+            trends.Statements !== 0
+        : false);
     core.debug(message);
     return message;
 }
