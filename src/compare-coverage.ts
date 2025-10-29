@@ -1,6 +1,6 @@
 import fs from 'fs'
 import * as core from '@actions/core'
-import { context } from '@actions/github'
+import {context} from '@actions/github'
 import {exit} from 'process'
 
 type CoverageData = {
@@ -30,6 +30,7 @@ function readCoverage(filePath: string): CoverageData | null {
       Lines
     }
   } catch (err) {
+    core.debug(`Error reading coverage: ${String(err)}`)
     return null
   }
 }
@@ -88,8 +89,7 @@ export function getCoverageComment({
   const trends =
     prevCov !== null ? compareCoverageData(prevCov, currentCov) : null
 
-  const repoBaseUrl = context.serverUrl + '/' + context.repo.owner + '/' + context.repo.repo
-  core.info(`Repository base URL: ${repoBaseUrl}`)
+  const repoBaseUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}`
 
   const message = [
     `### Coverage trend:`,
@@ -100,7 +100,7 @@ export function getCoverageComment({
     }_`,
     ...(trends
       ? [
-          `| - | Previous | Current | Trend |`,
+          `| - | Previous (Base) | Current | Trend |`,
           `| --- | --- | --- | --- |`,
           `| Statements | ${prevCov?.Statements}% | ${
             currentCov.Statements
@@ -136,9 +136,9 @@ export function getCoverageComment({
     'has-changed',
     trends
       ? trends.Branches !== 0 ||
-        trends.Functions !== 0 ||
-        trends.Lines !== 0 ||
-        trends.Statements !== 0
+          trends.Functions !== 0 ||
+          trends.Lines !== 0 ||
+          trends.Statements !== 0
       : false
   )
 

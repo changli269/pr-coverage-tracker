@@ -58,6 +58,7 @@ function readCoverage(filePath) {
         };
     }
     catch (err) {
+        core.debug(`Error reading coverage: ${String(err)}`);
         return null;
     }
 }
@@ -88,8 +89,7 @@ function getCoverageComment({ commitId, currentCoverageFile, previousCommitId, p
         (0, process_1.exit)(0);
     }
     const trends = prevCov !== null ? compareCoverageData(prevCov, currentCov) : null;
-    const repoBaseUrl = github_1.context.serverUrl + '/' + github_1.context.repo.owner + '/' + github_1.context.repo.repo;
-    core.info(`Repository base URL: ${repoBaseUrl}`);
+    const repoBaseUrl = `${github_1.context.serverUrl}/${github_1.context.repo.owner}/${github_1.context.repo.repo}`;
     const message = [
         `### Coverage trend:`,
         `_Commit ${commitId}${previousCommitId
@@ -97,7 +97,7 @@ function getCoverageComment({ commitId, currentCoverageFile, previousCommitId, p
             : ''}_`,
         ...(trends
             ? [
-                `| - | Previous | Current | Trend |`,
+                `| - | Previous (Base) | Current | Trend |`,
                 `| --- | --- | --- | --- |`,
                 `| Statements | ${prevCov === null || prevCov === void 0 ? void 0 : prevCov.Statements}% | ${currentCov.Statements}% | ${trends.Statements >= 0
                     ? trends.Statements === 0
@@ -223,6 +223,7 @@ function getParentCommitSha(octokit, owner, repo, refSha) {
     });
 }
 function run() {
+    var _a, _b;
     return __awaiter(this, void 0, void 0, function* () {
         try {
             const currentCoverageFile = core.getInput('coverage-path', {
@@ -280,7 +281,8 @@ function run() {
                     repo: github_1.context.repo.repo,
                     per_page: 100
                 });
-                const caches = listResp.data.actions_caches || listResp.data.caches || [];
+                const data = listResp.data;
+                const caches = (_b = (_a = data.actions_caches) !== null && _a !== void 0 ? _a : data.caches) !== null && _b !== void 0 ? _b : [];
                 const existing = caches.find(c => c.key === targetKey);
                 if (existing) {
                     core.info(`Cache key ${targetKey} already exists (id=${existing.id}), deleting it before saving new one.`);

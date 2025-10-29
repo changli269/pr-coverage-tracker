@@ -1,16 +1,18 @@
 import * as core from '@actions/core'
-import { context, getOctokit } from '@actions/github'
+import {context, getOctokit} from '@actions/github'
 import * as cache from '@actions/cache'
-import { getCoverageComment } from './compare-coverage'
-import { mv } from '@actions/io'
+import {getCoverageComment} from './compare-coverage'
+import {mv} from '@actions/io'
 import * as fs from 'fs'
 
+type OctokitClient = ReturnType<typeof getOctokit>
+type ActionsCacheEntry = {id: number; key: string}
 const SHA_FROM_KEY_RE = /prev-([0-9a-fA-F]+)(?:-|$)/
 
 async function tryRestorePreviousCoverage(
   restoreKey: string,
   previousCoverageFile: string
-): Promise<{ sha?: string; recoveredKey?: string }> {
+): Promise<{sha?: string; recoveredKey?: string}> {
   const recoveredKey = await cache.restoreCache(
     [previousCoverageFile],
     restoreKey,
@@ -21,19 +23,21 @@ async function tryRestorePreviousCoverage(
     const m = SHA_FROM_KEY_RE.exec(recoveredKey)
     if (m && m[1]) {
       core.info(`Parsed previous commit id ${m[1]} from cache key`)
-      return { sha: m[1], recoveredKey }
+      return {sha: m[1], recoveredKey}
     } else {
-      core.warning(`Could not parse commit id from cache key '${recoveredKey}' with pattern ${SHA_FROM_KEY_RE}`)
-      return { sha: undefined, recoveredKey }
+      core.warning(
+        `Could not parse commit id from cache key '${recoveredKey}' with pattern ${SHA_FROM_KEY_RE}`
+      )
+      return {sha: undefined, recoveredKey}
     }
   } else {
     core.warning(`Couldnt get previous coverage from cache key ${restoreKey}`)
-    return { sha: undefined, recoveredKey: undefined }
+    return {sha: undefined, recoveredKey: undefined}
   }
 }
 
 async function getParentCommitSha(
-  octokit: any,
+  octokit: OctokitClient,
   owner: string,
   repo: string,
   refSha: string
@@ -52,7 +56,9 @@ async function getParentCommitSha(
     }
     return parentSha
   } catch (e) {
-    core.warning(`Failed to fetch parent commit via API: ${(e as Error).message}`)
+    core.warning(
+      `Failed to fetch parent commit via API: ${(e as Error).message}`
+    )
     return undefined
   }
 }
@@ -63,7 +69,9 @@ async function run(): Promise<void> {
       required: true
     })
     // Resolve reference coverage path; allow empty input -> use default filename
-    const previousCoverageInput: string = core.getInput('reference-coverage-path')
+    const previousCoverageInput: string = core.getInput(
+      'reference-coverage-path'
+    )
     const previousCoverageFile: string =
       previousCoverageInput && previousCoverageInput.trim().length > 0
         ? previousCoverageInput.trim()
@@ -74,7 +82,7 @@ async function run(): Promise<void> {
       )
     }
 
-    const token = core.getInput('token', { required: true })
+    const token = core.getInput('token', {required: true})
 
     const octokit = getOctokit(token)
 
@@ -97,7 +105,7 @@ async function run(): Promise<void> {
 
     // Restore previous coverage for baseline branch
     const restoreKey = `${process.platform}-${baselineBranch}-prev-`
-    const { sha: restoredSha } = await tryRestorePreviousCoverage(
+    const {sha: restoredSha} = await tryRestorePreviousCoverage(
       restoreKey,
       previousCoverageFile
     )
@@ -125,7 +133,7 @@ async function run(): Promise<void> {
     fs.writeFileSync('comment.md', comment)
 
     // Cache coverage as reference
-    await mv(currentCoverageFile, previousCoverageFile, { force: true })
+    await mv(currentCoverageFile, previousCoverageFile, {force: true})
     // Check if cache key already exists; list caches and delete matching entry to avoid save failure
     const targetKey = `${process.platform}-${branchName}-prev-${context.sha}`
     try {
@@ -137,8 +145,12 @@ async function run(): Promise<void> {
           per_page: 100
         }
       )
-      const caches: any[] =
-        (listResp.data as any).actions_caches || (listResp.data as any).caches || []
+      const data = listResp.data as {
+        actions_caches?: ActionsCacheEntry[]
+        caches?: ActionsCacheEntry[]
+      }
+      const caches: ActionsCacheEntry[] =
+        data.actions_caches ?? data.caches ?? []
       const existing = caches.find(c => c.key === targetKey)
       if (existing) {
         core.info(
@@ -153,10 +165,14 @@ async function run(): Promise<void> {
           }
         )
       } else {
-        core.info(`Cache key ${targetKey} does not exist yet; will create new cache.`)
+        core.info(
+          `Cache key ${targetKey} does not exist yet; will create new cache.`
+        )
       }
     } catch (e) {
-      core.warning(`Could not verify existing cache keys: ${(e as Error).message}`)
+      core.warning(
+        `Could not verify existing cache keys: ${(e as Error).message}`
+      )
     }
     await cache.saveCache([previousCoverageFile], targetKey)
 
